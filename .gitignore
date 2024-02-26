@@ -1,0 +1,216 @@
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <map>
+
+using namespace std;
+
+class Student;
+
+class Facultate {
+private:
+    string nume;
+    string domeniu;
+    vector<Student*> studenti;
+
+public:
+    Facultate(string nume, string domeniu) : nume(nume), domeniu(domeniu) {}
+
+    void adaugaStudent(Student* student) {
+        studenti.push_back(student);
+    }
+
+    void absolvaStudent(Student* student) {
+        auto it = find(studenti.begin(), studenti.end(), student);
+        if (it != studenti.end())
+            studenti.erase(it);
+    }
+
+    vector<Student*> getStudentiInscrisi() {
+        return studenti;
+    }
+
+    string getNume() {
+        return nume;
+    }
+
+    string getDomeniu() {
+        return domeniu;
+    }
+};
+
+class Student {
+private:
+    string nume;
+    string email;
+    Facultate* facultate;
+
+public:
+    Student(string nume, string email, Facultate* facultate) : nume(nume), email(email), facultate(facultate) {}
+
+    string getNume() {
+        return nume;
+    }
+
+    string getEmail() {
+        return email;
+    }
+
+    Facultate* getFacultate() {
+        return facultate;
+    }
+};
+
+class SistemAdministrareStudenti {
+private:
+    map<string, Facultate*> facultati;
+
+public:
+    void creeazaFacultate(string nume, string domeniu) {
+        facultati[nume] = new Facultate(nume, domeniu);
+    }
+
+    void atribuieStudentLaFacultate(Student* student, string numeFacultate) {
+        if (facultati.find(numeFacultate) != facultati.end())
+            facultati[numeFacultate]->adaugaStudent(student);
+        else
+            cout << "Facultatea nu a fost gasita." << endl;
+    }
+
+    void absolvaStudent(string emailStudent) {
+        for (auto& pereche : facultati) {
+            Facultate* facultate = pereche.second;
+            for (auto it = facultate->getStudentiInscrisi().begin(); it != facultate->getStudentiInscrisi().end(); ++it) {
+                if ((*it)->getEmail() == emailStudent) {
+                    facultate->absolvaStudent(*it);
+                    return;
+                }
+            }
+        }
+    }
+
+    void afiseazaStudentiInscrisi() {
+        for (auto& pereche : facultati) {
+            Facultate* facultate = pereche.second;
+            cout << "Studenti inscrisi la " << facultate->getNume() << ":" << endl;
+            for (auto& student : facultate->getStudentiInscrisi()) {
+                cout << student->getNume() << " - " << student->getEmail() << " - " << facultate->getNume() << endl;
+            }
+        }
+    }
+
+    void afiseazaAbsolventi() {
+        cout << "Lista de absolventi:" << endl;
+        for (auto& pereche : facultati) {
+            Facultate* facultate = pereche.second;
+            cout << "Studenti absolventi de la " << facultate->getNume() << ":" << endl;
+            for (auto& student : facultate->getStudentiInscrisi()) {
+                cout << student->getNume() << " - " << student->getEmail() << " - " << facultate->getNume() << endl;
+            }
+        }
+    }
+
+    Facultate* gasesteFacultateDupaEmailStudent(string email) {
+        for (auto& pereche : facultati) {
+            Facultate* facultate = pereche.second;
+            for (auto& student : facultate->getStudentiInscrisi()) {
+                if (student->getEmail() == email)
+                    return facultate;
+            }
+        }
+        return nullptr;
+    }
+
+    void afiseazaToateFacultatile() {
+        cout << "Lista tuturor facultatilor:" << endl;
+        for (auto& pereche : facultati) {
+            cout << pereche.first << " - " << pereche.second->getDomeniu() << endl;
+        }
+    }
+
+    void afiseazaFacultatiDupaDomeniu(string domeniu) {
+        cout << "Facultati in domeniul " << domeniu << ":" << endl;
+        for (auto& pereche : facultati) {
+            if (pereche.second->getDomeniu() == domeniu) {
+                cout << pereche.first << " - " << pereche.second->getDomeniu() << endl;
+            }
+        }
+    }
+};
+
+class ManagerSalvare {
+private:
+    string numeFisier;
+
+public:
+    ManagerSalvare(string numeFisier) : numeFisier(numeFisier) {}
+
+    void salveazaStare(SistemAdministrareStudenti* sms) {
+        ofstream fisier(numeFisier);
+        if (fisier.is_open()) {
+            for (auto& pereche : sms->facultati) {
+                Facultate* facultate = pereche.second;
+                fisier << facultate->getNume() << "," << facultate->getDomeniu() << endl;
+                for (auto& student : facultate->getStudentiInscrisi()) {
+                    fisier << student->getNume() << "," << student->getEmail() << "," << facultate->getNume() << endl;
+                }
+            }
+            fisier.close();
+        } else {
+            cerr << "Nu se poate deschide fisierul: " << numeFisier << endl;
+        }
+    }
+
+    SistemAdministrareStudenti* incarcaStare() {
+        SistemAdministrareStudenti* sms = new SistemAdministrareStudenti();
+        ifstream fisier(numeFisier);
+        if (fisier.is_open()) {
+            string linie;
+            Facultate* facultateCurenta = nullptr;
+            while (getline(fisier, linie)) {
+                size_t poz = linie.find(',');
+                if (poz != string::npos) {
+                    string nume = linie.substr(0, poz);
+                    string rest = linie.substr(poz + 1);
+                    poz = rest.find(',');
+                    if (poz != string::npos) {
+                        string domeniu = rest.substr(0, poz);
+                        sms->creeazaFacultate(nume, domeniu);
+                        facultateCurenta = sms->facultati[nume];
+                    } else {
+                        string email = rest;
+                        sms->atribuieStudentLaFacultate(new Student(nume, email, facultateCurenta), facultateCurenta->getNume());
+                    }
+                }
+            }
+            fisier.close();
+        } else {
+            cerr << "Nu se poate deschide fisierul: " << numeFisier << endl;
+        }
+        return sms;
+    }
+};
+
+int main() {
+    SistemAdministrareStudenti sms;
+
+    sms.creeazaFacultate("Universitatea Tehnică a Moldovei", "Tehnologia Informatiei");
+    sms.creeazaFacultate("Inginerie Electrica", "Inginerie");
+
+    Student* student1 = new Student("Ion Popescu", "ion@gmal.com", sms.facultati["Universitatea Tehnică a Moldovei"]);
+    Student* student2 = new Student("Maria Ionescu", "maria@gmail.com", sms.facultati["Inginerie Electrica"]);
+
+    sms.atribuieStudentLaFacultate(student1, "Universitatea Tehnică a Moldovei");
+    sms.atribuieStudentLaFacultate(student2, "Inginerie Electrica");
+
+    sms.afiseazaStudentiInscrisi();
+
+    ManagerSalvare managerSalvare("stare.txt");
+    managerSalvare.salveazaStare(&sms);
+
+    SistemAdministrareStudenti* nouSms = managerSalvare.incarcaStare();
+
+    nouSms->afiseazaStudentiInscrisi();
+
+    return 0;
+}
